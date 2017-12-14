@@ -29,6 +29,12 @@
 	</build>
 
 	<dependencies>
+		<!-- selenium screenshot에는 버그가 많아서 이러한 lib을 추가한다. -->
+		<dependency>
+			<groupId>com.assertthat</groupId>
+			<artifactId>selenium-shutterbug</artifactId>
+			<version>0.7</version>
+		</dependency>
 		<!-- crawler 동작을 위한 의존성 추가 -->
 		<dependency>
 			<groupId>com.codeborne</groupId>

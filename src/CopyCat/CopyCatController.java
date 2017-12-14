@@ -17,7 +17,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringEscapeUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -28,14 +27,15 @@ import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.UnexpectedAlertBehaviour;
 import org.openqa.selenium.UnhandledAlertException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.internal.WrapsDriver;
-import org.openqa.selenium.phantomjs.PhantomJSDriver;
-import org.openqa.selenium.remote.DesiredCapabilities;
+
+import com.assertthat.selenium_shutterbug.core.Shutterbug;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -93,7 +93,7 @@ public class CopyCatController implements Initializable {
 	private String boardUrl = "http://gall.dcinside.com/board/view/?id=lineage&no="; // + idx
 	private String deletedUrl1 = "http://gall.dcinside.com/board/lists/?id=lineage";
 	private String deletedUrl2 = "http://gall.dcinside.com/error/deleted/lineage";
-	private String imagePath = "D:\\Pictures";
+	private String imagePath = "D:\\Pictures\\";
 	/*
 	 * thread-safety collection declarations
 	 */
@@ -120,6 +120,8 @@ public class CopyCatController implements Initializable {
 	 * make a flag to prevent comment reader and writer before any post is posted
 	 */
 	private boolean isPostWrote = false;
+	private ChromeOptions chromeOpt = new ChromeOptions().addArguments("--headless");
+	// chromeOpt.addArguments("--headless");
 
 	@Override
 	public void initialize(URL location, ResourceBundle resources) {
@@ -130,31 +132,31 @@ public class CopyCatController implements Initializable {
 				loggingArea.setScrollTop(Double.MAX_VALUE);
 			}
 		});
-		ChromeOptions chromeOpt = new ChromeOptions();
-		chromeOpt.addArguments("--headless");
-//		postReadingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs());
-		 postReadingDriver = new ChromeDriver(chromeOpt);
-		// postWritingDriver = new PhantomJSDriver();
-		postWritingDriver = new ChromeDriver();
+		postReadingDriver = new ChromeDriver(chromeOpt);
+		postWritingDriver = new ChromeDriver(chromeOpt);
 		// 미구현 목록은 주석처리
 
-		int width = (int) Toolkit.getDefaultToolkit().getScreenSize().getWidth();
-		int height = (int) Toolkit.getDefaultToolkit().getScreenSize().getHeight();
+//		int width = (int) Toolkit.getDefaultToolkit().getScreenSize().getWidth();
+//		int height = (int) Toolkit.getDefaultToolkit().getScreenSize().getHeight();
 
-//		postReadingDriver.manage().window().setPosition(new Point(0, 0));
-//		postReadingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
+		// postReadingDriver.manage().window().setPosition(new Point(0, 0));
+		// postReadingDriver.manage().window().setSize(new Dimension(width / 2, height /
+		// 2));
 		postReadingDriver.manage().window().maximize();
-		postWritingDriver.manage().window().setPosition(new Point(width / 2, 0));
-		postWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
+//		postReadingDriver.manage().window().setSize(new Dimension(width, height * 100));
+		// postReadingDriver.manage().window().setPosition(new Point(-width, -height));
+//		postWritingDriver.manage().window().setPosition(new Point(width / 2, 0));
+//		postWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
 
-//		commentReadingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs());
-//		commentWritingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs())
+		// commentReadingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs());
+		// commentWritingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs())
 		commentReadingDriver = new ChromeDriver(chromeOpt);
-		commentWritingDriver = new ChromeDriver();
-//		commentReadingDriver.manage().window().setPosition(new Point(0, height / 2));
-//		commentReadingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
-		commentWritingDriver.manage().window().setPosition(new Point(width / 2, height / 2));
-		commentWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
+		commentWritingDriver = new ChromeDriver(chromeOpt);
+		// commentReadingDriver.manage().window().setPosition(new Point(0, height / 2));
+		// commentReadingDriver.manage().window().setSize(new Dimension(width / 2,
+		// height / 2));
+//		commentWritingDriver.manage().window().setPosition(new Point(width / 2, height / 2));
+//		commentWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
 		// js = (JavascriptExecutor) commentReadingDriver;
 	}
 
@@ -176,6 +178,10 @@ public class CopyCatController implements Initializable {
 		alert.setContentText("이용해주셔서 감사합니다. 종료합니다.");
 		alert.showAndWait().ifPresent(rs -> {
 			if (rs == ButtonType.OK) {
+				commentChecker.interrupt();
+				commentWritingThread.interrupt();
+				postReader.interrupt();
+				postWriter.interrupt();
 				postReadingDriver.quit();
 				postWritingDriver.quit();
 				commentReadingDriver.quit();
@@ -345,7 +351,7 @@ public class CopyCatController implements Initializable {
 
 	// DC 린갤로 이동.
 	public void openDC() {
-		postReadingDriver.get(dc);
+		postReadingDriver.navigate().to(dc);
 	}
 
 	// DC에서 새 글을 찾음.
@@ -355,7 +361,8 @@ public class CopyCatController implements Initializable {
 			num = getNewNumber();
 		} catch (NullPointerException npe) {
 			postReadingDriver.quit();
-			postReadingDriver = new PhantomJSDriver();
+			postReadingDriver = new ChromeDriver(chromeOpt);
+			postReadingDriver.manage().window().maximize();
 			postReadingDriver.get(dc);
 			num = getNewNumber();
 		}
@@ -370,14 +377,15 @@ public class CopyCatController implements Initializable {
 				postReadingDriver.get(boardUrl + num);
 			} catch (Exception e) {
 				postReadingDriver.quit();
-				postReadingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs());
+				postReadingDriver = new ChromeDriver(chromeOpt);
+				postReadingDriver.manage().window().maximize();
 				postReadingDriver.get(boardUrl + num);
 			}
 			// 댓글 하나 또는 두 개를 먼저 입력한 후에 collection에 저장함.
 			try {
 				writeCommentDC();
-			} catch (UnhandledAlertException alertException) {
-				logs.add(alertException.getMessage());
+			} catch (UnhandledAlertException | UnexpectedAlertBehaviour e) {
+				logs.add(e.getMessage());
 				postReadingDriver.switchTo().alert().accept();
 				postReadingDriver.switchTo().defaultContent();
 				ipStatus.setOpacity(1.0);
@@ -389,8 +397,8 @@ public class CopyCatController implements Initializable {
 	}
 
 	// 글을 가져오기 전에 DC에 댓글을 작성함.
-	public void writeCommentDC() throws UnhandledAlertException{
-		hideAllIframe(postReadingDriver);
+	public void writeCommentDC() {
+		 hideAllIframe(postReadingDriver);
 		WebElement commentUserName = postReadingDriver.findElement(By.cssSelector("input#name"));
 		WebElement commentPW = postReadingDriver.findElement(By.cssSelector("input#password"));
 		WebElement comment = postReadingDriver.findElement(By.cssSelector("textarea#memo"));
@@ -404,30 +412,30 @@ public class CopyCatController implements Initializable {
 			try {
 				writeCommentBtn.click();
 			} catch (Exception e) {
-				try{
-				scrollIntoView(postReadingDriver, writeCommentBtn);
-				writeCommentBtn.click();
+				try {
+					scrollIntoView(postReadingDriver, writeCommentBtn);
+					writeCommentBtn.click();
 				} catch (UnhandledAlertException alertException) {
 					throw new UnhandledAlertException(alertException.getAlertText());
 				}
 			}
-		}
-		if (!comment2.getText().isEmpty()) {
-			Random rand = new Random();
-			int randomSleep = rand.nextInt(7) + 5;
-			try {
-				Thread.sleep(1000 * randomSleep);
-			} catch (InterruptedException e1) {
-			}
-			comment.sendKeys(comment2.getText());
-			try {
-				writeCommentBtn.click();
-			} catch (Exception e) {
-				try{
-				scrollIntoView(postReadingDriver, writeCommentBtn);
-				writeCommentBtn.click();
-				} catch (UnhandledAlertException alertException) {
-					throw new UnhandledAlertException(alertException.getAlertText());
+			if (!comment2.getText().isEmpty()) {
+				Random rand = new Random();
+				int randomSleep = rand.nextInt(7) + 5;
+				try {
+					Thread.sleep(1000 * randomSleep);
+				} catch (InterruptedException e1) {
+				}
+				comment.sendKeys(comment2.getText());
+				try {
+					writeCommentBtn.click();
+				} catch (Exception e) {
+					try {
+						scrollIntoView(postReadingDriver, writeCommentBtn);
+						writeCommentBtn.click();
+					} catch (UnhandledAlertException alertException) {
+						throw new UnhandledAlertException(alertException.getAlertText());
+					}
 				}
 			}
 		}
@@ -449,13 +457,11 @@ public class CopyCatController implements Initializable {
 		// posting 페이지에서 추가하기 위함.
 		List<WebElement> imgs = postReadingDriver.findElements(By.cssSelector(".s_write img"));
 		for (int i = 0; i < imgs.size(); i++) {
-			String thisImagePath = imagePath + "\\" + currentPost.getNumber() + i + ".png";
-			try {
-				takeScreenshotElement(imgs.get(i), thisImagePath);
-				currentPost.addImagePaths(thisImagePath);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			String thisImagePath = imagePath + currentPost.getNumber() + i + ".png";
+			// takeScreenshotElement(imgs.get(i), thisImagePath);
+			Shutterbug.shootElement(postReadingDriver, imgs.get(i)).withName("" + currentPost.getNumber() + i)
+					.save(imagePath);
+			currentPost.addImagePaths(thisImagePath);
 		}
 		// Elements imgs = doc.select(".s_write img");
 		// postReadingDriver.findElements(By.cssSelector(".s_write img")).get(0).
@@ -607,12 +613,13 @@ public class CopyCatController implements Initializable {
 	}
 
 	public void hideAllIframe(WebDriver driver) {
-		((JavascriptExecutor) driver).executeScript("var elements = document.getElementsByTagName('iframe');"
-				+ "var iframeArr = Array.from(elements);"
-				+ "iframeArr.forEach( function(item, index) {"
-				+ "	item.style.display = 'none';"
-				+ "} );");
+		((JavascriptExecutor) driver).executeScript(
+				"var elements = document.getElementsByTagName('iframe');" + "var iframeArr = Array.from(elements);"
+						+ "iframeArr.forEach( function(item, index) {" + "	item.style.display = 'none';" + "} );"
+						+ "var a = document.getElementById('wif_adx_banner_wrap');\r\n" + 
+							"if (a!=null) {a.remove();}");
 	}
+
 	public Object runScript(WebDriver driver, String script, WebElement target) {
 		/*
 		 * to run script shorter
@@ -674,7 +681,7 @@ public class CopyCatController implements Initializable {
 		File file = directoryChooser.showDialog(null);
 
 		if (file != null) {
-			imagePath = file.getPath();
+			imagePath = file.getPath() + "\\";
 			directoryTF.setText(imagePath);
 		}
 	}
@@ -691,6 +698,5 @@ public class CopyCatController implements Initializable {
 		File file = new File(path);
 		FileUtils.copyFile(screenshot, file);
 	}
-	
-	
+
 }
