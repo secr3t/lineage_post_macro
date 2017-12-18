@@ -3,6 +3,7 @@ package CopyCat;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
+import java.awt.image.RasterFormatException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -34,8 +35,10 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.internal.WrapsDriver;
+import org.openqa.selenium.phantomjs.PhantomJSDriver;
 
 import com.assertthat.selenium_shutterbug.core.Shutterbug;
+import com.assertthat.selenium_shutterbug.utils.web.ElementOutsideViewportException;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -126,6 +129,7 @@ public class CopyCatController implements Initializable {
 	@Override
 	public void initialize(URL location, ResourceBundle resources) {
 		System.setProperty("webdriver.chrome.driver", "src/chromedriver.exe");
+		// System.setProperty("phantomjs.binary.path", "src/phantomjs.exe");
 		loggingArea.textProperty().addListener(new ChangeListener<Object>() {
 			@Override
 			public void changed(ObservableValue<? extends Object> observable, Object oldValue, Object newValue) {
@@ -133,20 +137,23 @@ public class CopyCatController implements Initializable {
 			}
 		});
 		postReadingDriver = new ChromeDriver(chromeOpt);
+		// postReadingDriver = new PhantomJSDriver();
 		postWritingDriver = new ChromeDriver(chromeOpt);
 		// 미구현 목록은 주석처리
 
-//		int width = (int) Toolkit.getDefaultToolkit().getScreenSize().getWidth();
-//		int height = (int) Toolkit.getDefaultToolkit().getScreenSize().getHeight();
+		// int width = (int) Toolkit.getDefaultToolkit().getScreenSize().getWidth();
+		// int height = (int) Toolkit.getDefaultToolkit().getScreenSize().getHeight();
 
 		// postReadingDriver.manage().window().setPosition(new Point(0, 0));
 		// postReadingDriver.manage().window().setSize(new Dimension(width / 2, height /
 		// 2));
-		postReadingDriver.manage().window().maximize();
-//		postReadingDriver.manage().window().setSize(new Dimension(width, height * 100));
+		// postReadingDriver.manage().window().maximize();
+		// postReadingDriver.manage().window().setSize(new Dimension(width, height *
+		// 100));
 		// postReadingDriver.manage().window().setPosition(new Point(-width, -height));
-//		postWritingDriver.manage().window().setPosition(new Point(width / 2, 0));
-//		postWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
+		// postWritingDriver.manage().window().setPosition(new Point(width / 2, 0));
+		// postWritingDriver.manage().window().setSize(new Dimension(width / 2, height /
+		// 2));
 
 		// commentReadingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs());
 		// commentWritingDriver = new PhantomJSDriver(DesiredCapabilities.phantomjs())
@@ -155,8 +162,10 @@ public class CopyCatController implements Initializable {
 		// commentReadingDriver.manage().window().setPosition(new Point(0, height / 2));
 		// commentReadingDriver.manage().window().setSize(new Dimension(width / 2,
 		// height / 2));
-//		commentWritingDriver.manage().window().setPosition(new Point(width / 2, height / 2));
-//		commentWritingDriver.manage().window().setSize(new Dimension(width / 2, height / 2));
+		// commentWritingDriver.manage().window().setPosition(new Point(width / 2,
+		// height / 2));
+		// commentWritingDriver.manage().window().setSize(new Dimension(width / 2,
+		// height / 2));
 		// js = (JavascriptExecutor) commentReadingDriver;
 	}
 
@@ -306,11 +315,7 @@ public class CopyCatController implements Initializable {
 		public void run() {
 			while (true) {
 				openDC();
-				try {
-					postRead1();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
+				postRead1();
 				Random rand = new Random();
 				int randomSleep = rand.nextInt(7) + 5;
 				logs.add(randomSleep + "초만큼 쉼.");
@@ -355,24 +360,16 @@ public class CopyCatController implements Initializable {
 	}
 
 	// DC에서 새 글을 찾음.
-	public void postRead1() throws InterruptedException {
+	public void postRead1() {
 		int num = 0;
-		try {
 			num = getNewNumber();
-		} catch (NullPointerException npe) {
-			postReadingDriver.quit();
-			postReadingDriver = new ChromeDriver(chromeOpt);
-			postReadingDriver.manage().window().maximize();
-			postReadingDriver.get(dc);
-			num = getNewNumber();
-		}
 		int lastExist;
 		try {
 			lastExist = postInfoList.get(postInfoList.size() - 1).getNumber();
 		} catch (ArrayIndexOutOfBoundsException e) {
 			lastExist = 0;
 		}
-		if (num > lastExist) {
+		if (num > lastExist && num != 0) {
 			try {
 				postReadingDriver.get(boardUrl + num);
 			} catch (Exception e) {
@@ -384,7 +381,7 @@ public class CopyCatController implements Initializable {
 			// 댓글 하나 또는 두 개를 먼저 입력한 후에 collection에 저장함.
 			try {
 				writeCommentDC();
-			} catch (UnhandledAlertException | UnexpectedAlertBehaviour e) {
+			} catch (UnhandledAlertException e) {
 				logs.add(e.getMessage());
 				postReadingDriver.switchTo().alert().accept();
 				postReadingDriver.switchTo().defaultContent();
@@ -398,7 +395,7 @@ public class CopyCatController implements Initializable {
 
 	// 글을 가져오기 전에 DC에 댓글을 작성함.
 	public void writeCommentDC() {
-		 hideAllIframe(postReadingDriver);
+		hideAllIframe(postReadingDriver);
 		WebElement commentUserName = postReadingDriver.findElement(By.cssSelector("input#name"));
 		WebElement commentPW = postReadingDriver.findElement(By.cssSelector("input#password"));
 		WebElement comment = postReadingDriver.findElement(By.cssSelector("textarea#memo"));
@@ -459,8 +456,12 @@ public class CopyCatController implements Initializable {
 		for (int i = 0; i < imgs.size(); i++) {
 			String thisImagePath = imagePath + currentPost.getNumber() + i + ".png";
 			// takeScreenshotElement(imgs.get(i), thisImagePath);
-			Shutterbug.shootElement(postReadingDriver, imgs.get(i)).withName("" + currentPost.getNumber() + i)
-					.save(imagePath);
+			try {
+				Shutterbug.shootElement(postReadingDriver, imgs.get(i)).withName("" + currentPost.getNumber() + i)
+						.save(imagePath);
+			} catch (ElementOutsideViewportException | RasterFormatException exc) {
+				logs.add(currentPost.getNumber() + "의 글은 알 수 없는 이유로 스크린샷을 시도할 수 없습니다. 캡쳐를 건너뜁니다.");
+			}
 			currentPost.addImagePaths(thisImagePath);
 		}
 		// Elements imgs = doc.select(".s_write img");
@@ -581,20 +582,19 @@ public class CopyCatController implements Initializable {
 	}
 
 	// DC에서 가장 최근 글을 찾기 위해서 최상단 번호를 추출함.
-	public Integer getNewNumber() {
+	public int getNewNumber() {
 		Document doc = Jsoup.parse(postReadingDriver.getPageSource());
 		Elements td_numbers = doc.select("td.t_notice");
+		int num = 0;
 		for (Element td_number : td_numbers) {
-			Integer number = 0;
 			try {
-				number = Integer.parseInt(td_number.text());
-				logs.add("게시글 번호 : " + number.toString());
-				return number;
+				num = Integer.parseInt(td_number.text());
+				logs.add("게시글 번호 : " + num);
 			} catch (NumberFormatException nfe) {
 				System.out.println(td_number + " : 숫자를 가지고 있지 않습니다.");
 			}
 		}
-		return null;
+		return num;
 	}
 
 	// 해당하는 post의 reply 갯수를 가져옴.
@@ -616,8 +616,7 @@ public class CopyCatController implements Initializable {
 		((JavascriptExecutor) driver).executeScript(
 				"var elements = document.getElementsByTagName('iframe');" + "var iframeArr = Array.from(elements);"
 						+ "iframeArr.forEach( function(item, index) {" + "	item.style.display = 'none';" + "} );"
-						+ "var a = document.getElementById('wif_adx_banner_wrap');\r\n" + 
-							"if (a!=null) {a.remove();}");
+						+ "var a = document.getElementById('wif_adx_banner_wrap');\r\n" + "if (a!=null) {a.remove();}");
 	}
 
 	public Object runScript(WebDriver driver, String script, WebElement target) {
